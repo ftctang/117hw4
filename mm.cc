@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <x86intrin.h>
 
-
 #include "timer.c"
 
 #define N_ 4096
@@ -12,8 +11,6 @@
 #define M_ 4096
 
 typedef double dtype;
-
-int min(int A, int B);
 
 void verify(dtype *C, dtype *C_ans, int N, int M)
 {
@@ -30,38 +27,11 @@ void mm_serial (dtype *C, dtype *A, dtype *B, int N, int K, int M)
   int i, j, k;
   for(int i = 0; i < N; i++) {
     for(int j = 0; j < M; j++) {
-      for(int k = 0; k < K; k++) {
+      for(int k = 0; k < K; k++) {		
         C[i * M + j] += A[i * K + k] * B[k * M + j];
       }
     }
   }
-}
-
-void mm_cb (dtype *C, dtype *A, dtype *B, int N, int K, int M)
-{
-  /* =======================================================+ */
-  /* Implement your own cache-blocked matrix-matrix multiply  */
-  /* =======================================================+ */
-  
-  int i, j, k, i0 , j0 , k0 , block;
-  block = 4;
-  double temp1 , temp2;
-  
-  for(int i0 = 0; i0 < N ; i0 += block) {
-    for(int j0 = 0; j0 < M; j0 += block) {
-      for(int k0 = 0; k0 < K; k0 += block) {
-        for(int i = i0; i < min(i0 + block, N); i++) {
-          for(int j = j0; j < min(j0 + block, K); j++) {
-            for(int k = k0; k < min(k0 + block, M); k++) {
-			  temp1 = A[i * K + k];
-			  temp2 = B[k * M + j];
-              C[i * M + j] += temp1 * temp2;
-            }
-          }
-        }
-      }
-    }
-  }	 
 }
 
 int min (int A , int B){
@@ -75,11 +45,53 @@ int min (int A , int B){
 
 }
 
+void mm_cb (dtype *C, dtype *A, dtype *B, int N, int K, int M)
+{
+  int i, j, k, i0 , j0 , k0 , block;
+  block = 4;
+  double temp1 , temp2;
+  
+  for(int i0 = 0; i0 < N ; i0 += block) {
+    for(int j0 = 0; j0 < M  ; j0 += block ) {
+      for(int k0 = 0; k0 < K; k0 += block) {
+        for(int i = i0; i < min(i0 + block ,N) ; i++) {
+          for(int j = j0; j < min(j0 + block ,K); j++) {
+            for(int k = k0; k < min(k0 + block ,M); k++) {
+			  temp1 =  A[i * K + k];
+			  temp2 = B[k * M+ j];
+              C[i * M + j] += temp1 * temp2;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
 void mm_sv (dtype *C, dtype *A, dtype *B, int N, int K, int M)
 {
-  /* =======================================================+ */
-  /* Implement your own SIMD-vectorized matrix-matrix multiply  */
-  /* =======================================================+ */
+  __m128d vecA, vecB , vecC;
+  int i, j, k, i0 , j0 , k0 , block;
+  block = 4;
+  
+  for(int i0 = 0; i0 < N ; i0 += block) {
+    for(int j0 = 0; j0 < M  ; j0 += block ) {
+      for(int k0 = 0; k0 < K; k0 += block) {
+        for(int i = i0; i < min(i0 + block ,N) ; i++) {
+          for(int j = j0; j < min(j0 + block ,K); j+=2) {
+			vecC = _mm_load_pd(C +(i*M + j));
+			for(int k = k0; k < min(k0 + block ,M); k++) {
+			  vecA = _mm_set1_pd(A[i * K + k]);
+			  vecB = _mm_load_pd(B + (k * M + j));
+              vecC = _mm_add_pd(_mm_mul_pd(vecA, vecB) , vecC);
+            }
+			_mm_store_pd(C + (i*M +j) , vecC);
+          }
+        }
+      }
+    }
+  }
 }
 
 int main(int argc, char** argv)
