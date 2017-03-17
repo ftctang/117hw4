@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 #include <assert.h>
+#include <x86intrin.h>
+
 
 #include "timer.c"
 
@@ -10,6 +12,8 @@
 #define M_ 4096
 
 typedef double dtype;
+
+int min(int A, int B);
 
 void verify(dtype *C, dtype *C_ans, int N, int M)
 {
@@ -39,48 +43,36 @@ void mm_cb (dtype *C, dtype *A, dtype *B, int N, int K, int M)
   /* Implement your own cache-blocked matrix-matrix multiply  */
   /* =======================================================+ */
   
-  int           i, j, k;
-  double        tempC1, tempC2, tempC3, tempC4,
-                tempA1, tempA2, tempA3, tempA4,
-                tempB1, tempB2, tempB3, tempB4;
+  int i, j, k, i0 , j0 , k0 , block;
+  block = 4;
+  double temp1 , temp2;
+  
+  for(int i0 = 0; i0 < N ; i0 += block) {
+    for(int j0 = 0; j0 < M; j0 += block) {
+      for(int k0 = 0; k0 < K; k0 += block) {
+        for(int i = i0; i < min(i0 + block, N); i++) {
+          for(int j = j0; j < min(j0 + block, K); j++) {
+            for(int k = k0; k < min(k0 + block, M); k++) {
+			  temp1 = A[i * K + k];
+			  temp2 = B[k * M + j];
+              C[i * M + j] += temp1 * temp2;
+            }
+          }
+        }
+      }
+    }
+  }	 
+}
 
-  for(i = 0; i < (N/4); i++){
-	  for(j = 0; j < (M/4); j++){
-
-		  // setup up block C
-		  tempC1 = C[i * M + j*2];
-		  tempC2 = C[i * M + (j*2+1)];
-		  tempC3 = C[(i+1) * M + j*2];
-		  tempC4 = C[(i+1) * M + (j*2+1)];
-		  
-		  for(k = 0; k < (K/4); k++){
-			  
-			  //read block A
-			  tempA1 = A[i * K + k*2];
-			  tempA2 = A[i * K + (k*2+1)];
-			  tempA3 = A[(i+1) * K + k*2];
-			  tempA4 = A[(i+1) * K + (k*2+1)];
-			  
-			  //read block B
-			  tempB1 = B[k * M + j*2];
-			  tempB2 = B[k * M + (j*2+1)];
-			  tempB3 = B[(k+1) * M + j*2];
-			  tempB4 = B[(k+1) * M + (j*2+1)];
-			  
-			  //update block C
-			  tempC1 += tempA1 * tempB1;
-			  tempC2 += tempA2 * tempB2;
-			  tempC3 += tempA3 * tempB3;
-			  tempC4 += tempA4 * tempB4;
-		  }
-		  
-		  //write values into block C
-		  C[i * M + j*2] 			= tempC1;
-		  C[i * M + (j*2+1)] 		= tempC2;
-		  C[(i+1) * M + j*2] 		= tempC3;
-		  C[(i+1) * M + (j*2+1)] 	= tempC4;
-	  }
+int min (int A , int B){
+  if( A < B){
+    return A;
   }
+  
+  else{
+    return B; 
+  }
+
 }
 
 void mm_sv (dtype *C, dtype *A, dtype *B, int N, int K, int M)
